@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>萝卜双色球 - 联机版</title>
+    <style>
+        :root { --red: #ff4d4f; --blue: #1890ff; }
+        body { font-family: 'PingFang SC', sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
+        .card { background: #fff; padding: 25px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 450px; }
+        
+        /* 登录页 */
+        #login-page { text-align: center; }
+        .input-group { margin: 15px 0; }
+        input { padding: 10px; width: 80%; border: 1px solid #ddd; border-radius: 8px; }
+        
+        /* 游戏页 */
+        .stats-bar { display: flex; justify-content: space-between; background: #fafafa; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eee; }
+        .timer-zone { text-align: center; color: #d46b08; font-weight: bold; margin-bottom: 15px; }
+        .ball-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; justify-content: center;}
+        .ball { width: 34px; height: 34px; border-radius: 50%; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; font-weight: bold;}
+        .red-s { background: var(--red); color: white; border-color: var(--red); }
+        .blue-s { background: var(--blue); color: white; border-color: var(--blue); }
+        
+        .result-zone { display: flex; justify-content: center; gap: 10px; padding: 15px; background: #fdfdfd; border: 1px dashed #ccc; border-radius: 10px; margin-bottom: 15px;}
+        .res-ball { width: 36px; height: 36px; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+
+        button { width: 100%; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-bottom: 10px; transition: 0.3s;}
+        .btn-main { background: var(--red); color: white; }
+        .btn-sub { background: #52c41a; color: white; }
+        .btn-charge { background: #faad14; color: white; }
+        
+        .log { height: 100px; overflow-y: auto; font-size: 12px; border-top: 1px solid #eee; padding-top: 10px; color: #666; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div id="login-page">
+        <h2>🥕 萝卜双色球</h2>
+        <p style="color:#888">输入账号密码自动注册/登录</p>
+        <div class="input-group"><input type="text" id="u" placeholder="用户名"></div>
+        <div class="input-group"><input type="password" id="p" placeholder="密码"></div>
+        <button class="btn-main" onclick="login()">进入系统</button>
+    </div>
+
+    <div id="game-page" style="display: none;">
+        <div class="timer-zone">🕒 距离结算还剩: <span id="countdown">--</span>s</div>
+        
+        <div class="stats-bar">
+            <div>💰 萝卜: <span id="money" style="color:red">0</span></div>
+            <div>🏆 奖池: <span id="jackpot">0</span></div>
+        </div>
+
+        <div style="font-size: 12px; color: #999; margin-bottom: 5px;">上期开奖结果：</div>
+        <div class="result-zone" id="last-win"></div>
+
+        <div class="ball-group" id="red-pool"></div>
+        <div class="ball-group" id="blue-pool"></div>
+
+        <button class="btn-main" onclick="bet()">确认投注 (2萝卜)</button>
+        <button class="btn-sub" onclick="quickSelect()">机选号码</button>
+        <button class="btn-charge" onclick="charge()">领取 1000 萝卜 (充值接口)</button>
+        
+        <div class="log" id="log"></div>
+    </div>
+</div>
+
+<script>
+    const API_URL = "https://emosdlt.xixixy.xyz.workers.dev"; // [重要] 替换成你的URL
+    let user = "", pass = "", selRed = [], selBlue = null;
+
+    // 1. 登录验证
+    async function login() {
+        user = document.getElementById('u').value;
+        pass = document.getElementById('p').value;
+        if(!user || !pass) return alert("写账号密码！");
+
+        const res = await fetch(`${API_URL}/api/auth`, {
+            method: 'POST',
+            body: JSON.stringify({ user, pass })
+        });
+        
+        if(res.ok) {
+            const data = await res.json();
+            document.getElementById('login-page').style.display = 'none';
+            document.getElementById('game-page').style.display = 'block';
+            document.getElementById('money').innerText = data.money;
+            initPool();
+            startLiveTimer();
+            syncData(); 
+            addLog("登录成功，数据已从云端同步");
+        } else {
+            alert("密码错误或登录失败");
+        }
+    }
+
+    // 2. 实时走时与自动同步
+    function startLiveTimer() {
+        setInterval(() => {
+            const now = new Date();
+            const seconds = now.getSeconds();
+            const remain = 60 - seconds;
+            document.getElementById('countdown').innerText = remain;
+            
+            // 每分钟整点，或每隔10秒从服务器同步一次奖池和中奖信息
+            if(remain === 59 || remain % 10 === 0) syncData();
+        }, 1000);
+    }
+
+    async function syncData() {
+        const res = await fetch(`${API_URL}/api/info`);
+        const data = await res.json();
+        document.getElementById('jackpot').innerText = Math.floor(data.jackpot);
+        
+        const winBox = document.getElementById('last-win');
+        winBox.innerHTML = '';
+        data.lastDraw.red.forEach(n => winBox.innerHTML += `<div class="res-ball" style="background:var(--red)">${n}</div>`);
+        winBox.innerHTML += `<div class="res-ball" style="background:var(--blue)">${data.lastDraw.blue}</div>`;
+        
+        // 同时刷新个人余额
+        const uRes = await fetch(`${API_URL}/api/auth`, { method:'POST', body:JSON.stringify({user, pass}) });
+        const uData = await uRes.json();
+        document.getElementById('money').innerText = uData.money;
+    }
+
+    // 3. 充值逻辑
+    async function charge() {
+        const res = await fetch(`${API_URL}/api/charge`, {
+            method: 'POST',
+            body: JSON.stringify({ user, pass, amount: 1000 })
+        });
+        const data = await res.json();
+        document.getElementById('money').innerText = data.money;
+        addLog("成功领取了 1000 萝卜！");
+    }
+
+    // 4. 投注逻辑
+    async function bet() {
+        if(selRed.length !== 4 || !selBlue) return alert("选4红1蓝！");
+        const res = await fetch(`${API_URL}/api/bet`, {
+            method: 'POST',
+            body: JSON.stringify({ user, pass, ticket: {red:selRed, blue:selBlue} })
+        });
+        if(res.ok) {
+            const data = await res.json();
+            document.getElementById('money').innerText = data.money;
+            addLog(`已投注: 红[${selRed}] 蓝[${selBlue}]`);
+        } else {
+            alert("可能没钱了或服务器断开");
+        }
+    }
+
+    // --- UI 渲染辅助 ---
+    function initPool() {
+        const rp = document.getElementById('red-pool');
+        for(let i=1; i<=20; i++) {
+            let b = document.createElement('div'); b.className='ball'; b.innerText=i;
+            b.onclick=()=> {
+                if(selRed.includes(i)) { selRed=selRed.filter(x=>x!==i); b.classList.remove('red-s');}
+                else if(selRed.length<4) { selRed.push(i); b.classList.add('red-s');}
+  
