@@ -1,0 +1,57 @@
+[custom]
+; 基础设置
+include_emoji=true
+remove_old_emoji=true
+
+; 1. 定义策略组 (自动根据关键词筛选节点)
+; 格式：组名`select/url-test/fallback`关键词筛选`测试地址`测试间隔`延迟容差
+custom_proxy_group=手动选择`select`[]港台日新韩`[]香港`[]台湾`[]日本`[]新加坡`[]韩国`[]美国`[]其他国家`[]机场选择`[]DIRECT
+custom_proxy_group=港台日新韩`url-test`(香港|台湾|新加坡|日本|韩国)`http://www.gstatic.com/generate_204`300`50
+custom_proxy_group=香港`fallback`香港`http://www.gstatic.com/generate_204`300
+custom_proxy_group=台湾`fallback`台湾`http://www.gstatic.com/generate_204`300
+custom_proxy_group=日本`fallback`日本`http://www.gstatic.com/generate_204`300
+custom_proxy_group=新加坡`fallback`新加坡`http://www.gstatic.com/generate_204`300
+custom_proxy_group=韩国`fallback`韩国`http://www.gstatic.com/generate_204`300
+custom_proxy_group=美国`fallback`美国`http://www.gstatic.com/generate_204`300
+custom_proxy_group=其他国家`select`^((?!(香港|台湾|新加坡|日本|韩国)).)*$
+
+; 业务分类组 (引用上面的区域组)
+custom_proxy_group=广告拦截`select`[]REJECT`[]DIRECT
+custom_proxy_group=抖音`select`[]手动选择`[]港台日新韩`[]DIRECT
+custom_proxy_group=EMBY`select`[]手动选择`[]港台日新韩`[]DIRECT
+custom_proxy_group=steam`select`[]手动选择`[]港台日新韩`[]DIRECT
+custom_proxy_group=GPT`select`[]手动选择`[]港台日新韩`[]DIRECT
+custom_proxy_group=Google`select`[]手动选择`[]港台日新韩`[]DIRECT
+custom_proxy_group=Telegram`select`[]手动选择`[]港台日新韩`[]DIRECT
+
+; 2. 规则集引用 (对应你的 rule-providers)
+; 注意：Surfboard 终端会自动处理这些链接为 DOMAIN-SET/RULE-SET
+ruleset=广告拦截,https://anti-ad.net/surfboard.txt
+ruleset=DIRECT,https://raw.githubusercontent.com/binaryu/emos-proxy-rule/main/rules/emos-surfboard.list
+ruleset=GPT,[]GEOSITE,openai
+ruleset=Telegram,[]GEOSITE,telegram
+ruleset=DIRECT,[]GEOSITE,category-games@CN
+ruleset=手动选择,[]GEOSITE,google
+ruleset=手动选择,[]GEOSITE,geolocation-!cn
+ruleset=DIRECT,[]GEOSITE,cn
+ruleset=DIRECT,[]GEOIP,cn
+ruleset=DIRECT,[]GEOIP,lan
+
+; 3. 进程匹配 (针对安卓版 Surfboard 特化)
+custom_rule=PROCESS-NAME,com.ss.android.ugc.aweme,抖音
+custom_rule=PROCESS-NAME,com.valvesoftware.android.steam.community,steam
+custom_rule=PROCESS-NAME,com.openai.chatgpt,GPT
+custom_rule=PROCESS-NAME,org.telegram.messenger,Telegram
+custom_rule=PROCESS-NAME,org.thunderdog.challegram,Telegram
+custom_rule=PROCESS-NAME,fork.risin42.nagramx,Telegram
+custom_rule=PROCESS-NAME,com.twitter.android,手动选择
+custom_rule=PROCESS-NAME,com.android.vending,手动选择
+
+; 4. 自定义域名
+custom_rule=DOMAIN-SUFFIX,googleapis.cn,手动选择
+custom_rule=DOMAIN,emos.club,DIRECT
+custom_rule=DOMAIN,prlon.com,DIRECT
+custom_rule=DOMAIN,hellohk.me,DIRECT
+
+; 兜底规则
+ruleset=手动选择,[]MATCH
